@@ -1,8 +1,8 @@
 {
-    "extends": "tslint-config-airbnb",
-    "rules": {
-        "max-line-length": {
-            "options": [300]
-        }
-    }
+  "extends": ["tslint-config-airbnb","./node_modules/@al/common/dist/config/tslint.json"],
+  "rules": {
+    "prefer-array-literal": [true, { "allow-type-parameters": true }],
+    "variable-name": [true, "allow-snake-case"]
+
+  }
 }

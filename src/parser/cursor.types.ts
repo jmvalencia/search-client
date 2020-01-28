@@ -8,7 +8,7 @@
  */
 
 import { SQXToken, SQXDelimiter, SQXOperatorBase, SQXScalarValue, SQXPropertyRef } from './common.types';
-import { SQXOperatorAnd, SQXOperatorOr, SQXOperatorNegate, SQXOperatorProjectAs, SQXTokenCollection, SQXComparatorIn, SQXComparatorBetween } from './operator.types';
+import { SQXOperatorNegate, SQXOperatorProjectAs, SQXTokenCollection, SQXComparatorIn, SQXComparatorBetween } from './operator.types';
 import { SQXParser } from './parser.types';
 
 /**
@@ -66,7 +66,7 @@ export class SQXCursorDetails
         info.phraseRange    =   [ cursorIndex, cursorIndex ];     //  empty range at position of cursor
         if ( ! token ) {
             return new SQXCursorDetails();
-        } 
+        }
         info.tokens         =   token.siblings;
         info.tokenIndex     =   token.index;
 
@@ -177,7 +177,7 @@ export class SQXCursorDetails
         }
         return this;
     }
-    
+
     //  Set values
     public setValues( ...valueTokens:SQXToken[] ) {
         this.values = [];
@@ -196,7 +196,7 @@ export class SQXCursorDetails
                 this.values = this.values.concat( valueToken.values );
             } else if ( valueToken instanceof SQXComparatorBetween && valueToken.value1 && valueToken.value2 ) {
                 this.values.push( valueToken.value1, valueToken.value2 );
-            } 
+            }
         } );
         return this;
     }
@@ -216,7 +216,7 @@ export class SQXCursorDetails
      * This method supports execution of macros and shortcuts against specific keystrokes.
      *
      * @param {object} event The browser's keyup event
-     * @returns {boolean} True if the keystroke was acted on, false otherwise.  If true, the cursor's `expression` property 
+     * @returns {boolean} True if the keystroke was acted on, false otherwise.  If true, the cursor's `expression` property
      */
     public onKeyboardEvent(event:any):boolean {
         return false;
@@ -241,7 +241,7 @@ export class SQXCursorDetails
 
     public getBaseProperty():SQXPropertyRef {
         console.log("Trying to get root property", this );
-        let dereference = ( token:SQXToken ):SQXToken => {
+        let dereference = ( token:SQXToken ):SQXToken|null => {
             if ( token instanceof SQXOperatorBase ) {
                 if ( token.opPropertyRef ) {
                     return dereference( token.opPropertyRef );
@@ -249,6 +249,7 @@ export class SQXCursorDetails
             } else if ( token instanceof SQXPropertyRef ) {
                 return token;
             }
+            return null;
         };
         let result = dereference( this.operator || this.property );
         if ( result instanceof SQXPropertyRef ) {

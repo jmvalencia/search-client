@@ -16,11 +16,10 @@ import { AlBaseError } from '@al/common';
  */
 export class SQXParseError extends AlBaseError
 {
-    public token:SQXToken = null;
+    public token:SQXToken|null = null;
 
-    constructor( public message:string, public expression:string, public pointer:number|SQXToken|SQXParseCursor = null ) {
+    constructor( public message:string, public expression:string, public pointer:number|SQXToken|SQXParseCursor|null = null ) {
         super( message );
-        let errorOffset = -1;
         if ( pointer ) {
             if ( pointer instanceof SQXParseCursor ) {
                 //  If it's a cursor, resolve it to a token
@@ -35,10 +34,6 @@ export class SQXParseError extends AlBaseError
                 this.token = pointer;
                 this.token.error = this;           //  cross reference the token with the error
                 pointer = pointer.token_start;
-            }
-            if ( typeof( pointer ) === 'number' ) {
-                //  If it's an offset, then we have what we need to RUMBLE
-                errorOffset = pointer;
             }
         }
 
@@ -57,13 +52,13 @@ export class SQXParseError extends AlBaseError
 export class SQXToken
 {
     textValue:string    = '';           //  The textual token itself -- e.g., "IN", "file.id", "subnet_name"
-    id:string           = null;         //  An ID, if this token is annotated with an ID
+    id:string|null          = null;         //  An ID, if this token is annotated with an ID
     digested:boolean    = false;        //  Indicates whether or not the token has been digested into an operator tree or not
 
     children:SQXToken[] = [];           //  Child tokens (if this token is a nested block) -- for instance, anything inside ()
-    siblings:SQXToken[] = null;         //  Siblings
-    parent:SQXToken     = null;         //  Parent
-    state:SQXQueryState = null;         //  Query State
+    siblings:SQXToken[]|null = null;         //  Siblings
+    parent:SQXToken|null     = null;         //  Parent
+    state:SQXQueryState|null = null;         //  Query State
     index:number        = -1;           //  Relative index within siblings
 
     token_start:number  = 0;            //  0-based offset into the original query string where this token starts
@@ -73,13 +68,13 @@ export class SQXToken
     block_start:number  = 0;            //  0-based index of the block this token is found in.  For the top-level block, this will always be zero; for a nested block, it will be the offset of the opening parenthesis of the block.
     block_end:number    = 0;            //  0-based index of the end of the block this token is found in.   For a nested block, it will be the offset of the closing parenthesis of the block.
 
-    opSpec?:SQXOperatorMetadata = null; //  Points to an operator's metadata, if this token is considered to be an operator
+    opSpec?:SQXOperatorMetadata|null = null; //  Points to an operator's metadata, if this token is considered to be an operator
 
-    error:SQXParseError = null;         //  An error instance, if this token is associated with a specific error.
+    error:SQXParseError|null = null;         //  An error instance, if this token is associated with a specific error.
     literal:boolean     = false;        //  True if the token is a string literal, contained in quotes.  If this is the case, the quotes
                                         //  will not be included in `textValue` but token_start and token_end will include the quotes in the original expression.
     blob:boolean        = false;        //  True if token contains more than one type of quotes, which means it could be a raw linux command for example.
-    constructor( value:SQXToken|string = null, blobValue:boolean = false ) {
+    constructor( value:SQXToken|string|null = null, blobValue:boolean = false ) {
         if ( value instanceof SQXToken ) {
             this.import( value );
         } else if ( typeof( value ) === 'string' ) {
@@ -126,11 +121,11 @@ export class SQXToken
      * If any operator names are provided, the function will only return true if this token IS an operator and its jsonKey or tokens match at least one entry.
      */
     public isOperator( ...opNames:string[] ) {
-        if ( ! this.opSpec ) {
+        if ( !this.opSpec ) {
             return false;
         }
         if ( opNames.length ) {
-            return opNames.reduce( ( matched, name ) => {
+            return opNames.reduce( (matched: boolean, name: string):boolean => {
                 return matched || this.opSpec.jsonKey === name || ( this.opSpec.tokens && this.opSpec.tokens.indexOf( name ) >= 0 );
             }, false );
         }
@@ -141,14 +136,14 @@ export class SQXToken
      * Returns true if this token represents a top level clause, like WHERE or GROUP BY, or false for other tokens.
      */
     public isTopClause():boolean {
-        return ( this.opSpec && this.opSpec.topClause && this.opSpec.jsonKey ) ? true : false;
+        return !!(this.opSpec && this.opSpec.topClause && this.opSpec.jsonKey);
     }
 
     /**
      * Returns true if this token represents a structural operator
      */
     public isStructuralOperator():boolean {
-        return ( this.opSpec && this.opSpec.asDelimiter ) ? true : false;
+        return !!(this.opSpec && this.opSpec.asDelimiter);
     }
 
     /**
@@ -186,7 +181,8 @@ export class SQXToken
     }
 
     public findExpressionRange():{expression_start:number,expression_end:number} {
-        let start = this.token_start, end = Math.max( this.token_end, this.children_end );
+        let start = this.token_start;
+        let end = Math.max(this.token_end, this.children_end);
         let callback = ( token:SQXToken ) => {
             start = Math.min( start, token.token_start );
             end = Math.max( end, token.token_end, token.children_end );
@@ -275,14 +271,14 @@ export class SQXGroupBase<ItemType> extends SQXOperatorBase
 
     constructor() { super(); }
 
+    public get count() {
+        return this.items.length;
+    }
+
     public forEach( callback:{(element:ItemType,index:number):void} ) {
         for ( let i = 0; i < this.items.length; i++ ) {
             callback( this.items[i], i );
         }
-    }
-
-    public get count() {
-        return this.items.length;
     }
 
     public push( item:ItemType ) {
@@ -345,29 +341,6 @@ export class SQXScalarValue extends SQXToken
         return scalar;
     }
 
-    public toQueryString():string {
-        if ( this.type === "null" ) {
-            return "null";
-        } else if ( this.type === "boolean" ) {
-            return this.value ? "true" : "false";
-        } else if ( this.type === "number" ) {
-            return this.value.toString();
-        } else {
-            let substitution = SQXQueryState.getNamedValueById( this.value.toString() );
-            if ( substitution ) {
-                return '"' + substitution.name.toString().replace( /"/g, '\"' ) + '"';
-            }
-        }
-        if (this.type === "string") {
-            const blobValue = this.value.toString();
-            // Allows to check if value contains characters that lead to a complex query.
-            if (blobValue.indexOf("'") >= 0 || blobValue.indexOf('"') >= 0 || blobValue.indexOf('`') >= 0) {
-                return '<<<' + blobValue + '>>>';
-            }
-        }
-        return '"' + this.value.toString().replace( /"/g, '\"' ) + '"';
-    }
-
     public static fromJson( raw:any ) {
         let scalar = new SQXScalarValue();
         scalar.value = raw;
@@ -389,6 +362,29 @@ export class SQXScalarValue extends SQXToken
             scalar.textValue = raw.toString();
         }
         return scalar;
+    }
+
+    public toQueryString():string {
+        if ( this.type === "null" ) {
+            return "null";
+        } else if ( this.type === "boolean" ) {
+            return this.value ? "true" : "false";
+        } else if ( this.type === "number" ) {
+            return this.value.toString();
+        } else {
+            let substitution = SQXQueryState.getNamedValueById( this.value.toString() );
+            if ( substitution ) {
+                return '"' + substitution.name.toString().replace( /"/g, '\"' ) + '"';
+            }
+        }
+        if (this.type === "string") {
+            const blobValue = this.value.toString();
+            // Allows to check if value contains characters that lead to a complex query.
+            if (blobValue.indexOf("'") >= 0 || blobValue.indexOf('"') >= 0 || blobValue.indexOf('`') >= 0) {
+                return '<<<' + blobValue + '>>>';
+            }
+        }
+        return '"' + this.value.toString().replace( /"/g, '\"' ) + '"';
     }
 
     public toJson():any {
@@ -468,32 +464,6 @@ export class SQXPropertyRef extends SQXToken
         return instance;
     }
 
-    public toQueryString():string {
-        let key = this.ns ? `${this.ns}:${this.property}` : this.property;
-        let entity = SQXQueryState.getNamedProperty( key );
-        if ( entity ) {
-            return `[${entity.name}]`;
-        } else {
-            return this.ns ? `${this.ns}:${this.property}` : ( this.property.match( /\s/ ) ? `[${this.property}]` : this.property );
-        }
-    }
-
-    public toJson():any {
-        let key = this.ns ? `${this.ns}:${this.property}` : this.property;
-        let entity = SQXQueryState.getNamedProperty( key );
-        if ( entity ) {
-            return SQXPropertyRef.sourceJson( entity.id, entity.ns );
-        }
-        if ( this.ns ) {
-            return SQXPropertyRef.sourceJson( this.property, this.ns || "any" );
-        } else {
-            if ( this.property === '*' ) {
-                return '*'; /* special case the wildcard */
-            }
-            return SQXPropertyRef.sourceJson( this.property );
-        }
-    }
-
     public static sourceJson( id:string, ns:string = null ) {
         if ( ns && ns.length ) {
             return {
@@ -506,6 +476,32 @@ export class SQXPropertyRef extends SQXToken
         return {
             source: id
         };
+    }
+
+    public toQueryString():string {
+        let key = this.ns ? `${this.ns}:${this.property}` : this.property;
+        let entity = SQXQueryState.getNamedProperty( key );
+        if ( entity ) {
+            return `[${entity.name}]`;
+        } else {
+            return this.ns ? `${this.ns}:${this.property}` : ( this.property.match( /\s/ ) ? `[${this.property}]` : this.property );
+        }
+    }
+
+    public toJson(): {source: {ns: string; id: string}} | {source: string} | string {
+        let key: string = this.ns ? `${this.ns}:${this.property}` : this.property;
+        let entity = SQXQueryState.getNamedProperty( key );
+        if ( entity ) {
+            return SQXPropertyRef.sourceJson( entity.id, entity.ns );
+        }
+
+        if (this.ns) {
+          return SQXPropertyRef.sourceJson(this.property, this.ns || 'any');
+        }
+        if (this.property === '*') {
+          return '*'; /* special case the wildcard */
+        }
+        return SQXPropertyRef.sourceJson(this.property);
     }
 }
 
@@ -523,7 +519,7 @@ export abstract class SQXParseCursor
     /**
      * Gets a token relative to the currently active index, defaulting to 0
      */
-    public abstract token( tokenIndex?:number );
+    public abstract token( tokenIndex?:number ):SQXToken;
 
     /**
      *  Pulls a single element from the current token sequence.
@@ -540,7 +536,7 @@ export abstract class SQXParseCursor
     /**
      * Increments the intake index or sets it to a specific location.
      */
-    public abstract next( newCurrentIndex?:number);
+    public abstract next( newCurrentIndex?:number):void;
 
     /**
      * Marks a given token as digested and reflects its status in the expression map.  There are several variants of this method -- a plain vanilla
@@ -592,27 +588,6 @@ export class SQXQueryState
         this.reflector = reflector;
     }
 
-    public addError( error:SQXParseError ) {
-        this.errors.push( error );
-    }
-
-    public reflect( token:SQXToken ) {
-        this.reflector( token );
-    }
-
-    public setOutput( outputId:string, token:SQXToken ) {
-        this.outputs[outputId] = token;
-    }
-
-    public getOutput( outputId:string):SQXToken {
-        return this.outputs.hasOwnProperty( outputId ) ? this.outputs[outputId] : null;
-    }
-
-    public reset() {
-        this.outputs = {};
-        this.errors = [];
-    }
-
     public static removeQuotes( item: SQXNamedEntity ){
         //  Ghettoest way ever to remove quotes from a string...  but it works!
         if ( item.name[0] === '"' ) {
@@ -657,6 +632,27 @@ export class SQXQueryState
     public static dump() {
         console.log("Entities: ", SQXQueryState.propertyByNameMap );
         console.log("Values: ", SQXQueryState.valueByNameMap );
+    }
+
+    public addError( error:SQXParseError ) {
+        this.errors.push( error );
+    }
+
+    public reflect( token:SQXToken ) {
+        this.reflector( token );
+    }
+
+    public setOutput( outputId:string, token:SQXToken ) {
+        this.outputs[outputId] = token;
+    }
+
+    public getOutput( outputId:string):SQXToken {
+        return this.outputs.hasOwnProperty( outputId ) ? this.outputs[outputId] : null;
+    }
+
+    public reset() {
+        this.outputs = {};
+        this.errors = [];
     }
 }
 

@@ -8,9 +8,9 @@
  *  @copyright Alert Logic Inc, 2018
  */
 
-import { SQXParseError, SQXToken, SQXOperatorBase, SQXPropertyRef, SQXScalarValue, SQXGroupBase } from './common.types';
-import { SQX_ALL_OPERATORS, SQXOperatorAnd, SQXOperatorOr, SQXOperatorProjectAs, SQXComparatorEqual, SQXComparatorIn } from './operator.types';
-import { SQX_ALL_CLAUSES, SQXClauseWhere, SQXClauseSelect, SQXClauseOrderBy, SQXClauseGroupBy, SQXClauseGroupByPermuted, SQXClauseHaving, SQXClauseLimit, SQXClauseTimeRange } from './clause.types';
+import { SQXToken, SQXOperatorBase, SQXPropertyRef, SQXScalarValue, SQXGroupBase } from './common.types';
+import { SQXOperatorAnd, SQXOperatorOr, SQXOperatorProjectAs, SQXComparatorEqual, SQXComparatorIn } from './operator.types';
+import { SQXClauseWhere, SQXClauseSelect, SQXClauseOrderBy, SQXClauseGroupBy, SQXClauseGroupByPermuted, SQXClauseHaving, SQXClauseLimit, SQXClauseTimeRange } from './clause.types';
 import { SQXParser } from './parser.types';
 
 /**
@@ -20,22 +20,22 @@ export interface SQXColumnDescriptor
 {
     name:string;                //  The textual name of the column
     type:string;                //  The type of the column.  This will be "number" or "any", because that's all of the data we can infer from the raw query.
-    asField?: string;           //  The field which references the AS property
+    asField?: string|null;           //  The field which references the AS property
     isAggregate?: boolean;      //  Is it an aggregate field
 }
 
 export class SQXSearchQuery
 {
-    public key:               string                   = null;
-    public name:              string                   = null;
-    public select:            SQXClauseSelect          = null;
-    public where:             SQXClauseWhere           = null;
-    public order_by:          SQXClauseOrderBy         = null;
-    public group_by:          SQXClauseGroupBy         = null;
-    public group_by_permuted: SQXClauseGroupByPermuted = null;
-    public having:            SQXClauseHaving          = null;
-    public limit:             SQXClauseLimit           = null;
-    public time_range:        SQXClauseTimeRange       = null;
+    public key:               string|null                   = null;
+    public name:              string|null                   = null;
+    public select:            SQXClauseSelect|null          = null;
+    public where:             SQXClauseWhere|null           = null;
+    public order_by:          SQXClauseOrderBy|null         = null;
+    public group_by:          SQXClauseGroupBy|null         = null;
+    public group_by_permuted: SQXClauseGroupByPermuted|null = null;
+    public having:            SQXClauseHaving|null          = null;
+    public limit:             SQXClauseLimit|null           = null;
+    public time_range:        SQXClauseTimeRange|null       = null;
     public aggregate:         boolean                  = false;
 
     constructor() {
@@ -116,11 +116,8 @@ export class SQXSearchQuery
     /**
      * Exports an instance into native search format JSON.
      */
-    public toJson():any {
-        let raw = {};
-        let properties = [ this.select, this.group_by, this.group_by_permuted, this.order_by, this.limit, this.having, this.where, this.time_range ]
-                            .filter( el => el !== null )
-                            .reduce( ( accumulator, el ) => Object.assign( accumulator, el.toJson() ), raw );
+    public toJson() {
+        let raw:{key?:string;name?:string;} = {};
 
         if ( this.key ) {
             raw["key"] = this.key;
@@ -170,7 +167,7 @@ export class SQXSearchQuery
             this.where = new SQXClauseWhere();
             this.where.condition = new SQXOperatorAnd();
         }
-        return this.where.condition;
+        return this.where.condition as SQXOperatorAnd;
     }
 
     /**
@@ -302,7 +299,7 @@ export class SQXSearchQuery
      * @param {SQXToken} from The starting point to traverse from; if null (default), enumerates all top level clauses except time range.
      * @param {depth} The current depth of execution.
      */
-    public traverseDescendants( callback:{(token:SQXToken,depth?:number):void}, from:SQXToken = null, depth:number = 0 ) {
+    public traverseDescendants( callback:{(token:SQXToken,depth?:number):void}, from:SQXToken|null = null, depth:number = 0 ) {
         if ( from === null ) {
             //  Enumerate all top-level clauses
             [this.select, this.where, this.order_by, this.group_by, this.group_by_permuted, this.having, this.limit]

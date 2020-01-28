@@ -41,14 +41,11 @@ export class SQXClauseSelect extends SQXOperatorBase
         }
     }
 
-    public toJson():any {
-        let result = {
-            "select": []
+    public toJson() {
+        return {
+            'select': this.columns.map(c => c.toJson()),
         };
-        for ( let i = 0; i < this.columns.length; i++ ) {
-            result.select.push( this.columns[i].toJson() );
-        }
-        return result;
+
     }
 
     public fromParser( cursor:SQXParseCursor, tokenIndex:number ) {
@@ -104,14 +101,10 @@ export class SQXClauseGroupByPermuted extends SQXOperatorBase
         }
     }
 
-    public toJson():any {
-        let result = {
-            "group_by_permuted": []
+    public toJson() {
+        return {
+            "group_by_permuted": this.fields.map(f=>f.toJson())
         };
-        for ( let i = 0; i < this.fields.length; i++ ) {
-            result.group_by_permuted.push( this.fields[i].toJson() );
-        }
-        return result;
     }
 
     public toQueryString():string {
@@ -163,14 +156,10 @@ export class SQXClauseGroupBy extends SQXOperatorBase
         }
     }
 
-    public toJson():any {
-        let result = {
-            "group_by": []
+    public toJson() {
+        return {
+            'group_by': this.fields.map(f => f.toJson()),
         };
-        for ( let i = 0; i < this.fields.length; i++ ) {
-            result.group_by.push( this.fields[i].toJson() );
-        }
-        return result;
     }
 
     public fromParser( cursor:SQXParseCursor, tokenIndex:number ) {
@@ -204,7 +193,7 @@ export class SQXClauseWhere extends SQXOperatorBase
         topClause: true
     };
 
-    public condition:SQXOperatorBase = null;
+    public condition:SQXOperatorBase|null = null;
 
     constructor() {
         super();
@@ -263,7 +252,7 @@ export class SQXClauseHaving extends SQXOperatorBase
         topClause: true
     };
 
-    public condition:SQXOperatorBase = null;
+    public condition:SQXOperatorBase|null = null;
 
     constructor() {
         super();
@@ -292,10 +281,16 @@ export class SQXClauseHaving extends SQXOperatorBase
     }
 
     public toQueryString():string {
+        if (!this.condition){
+            throw new Error("condition has not been defined");
+        }
         return "HAVING " + this.condition.toQueryString();
     }
 
-    public toJson():any {
+    public toJson() {
+        if (!this.condition){
+            throw new Error("condition has not been defined");
+        }
         return {
             having: this.condition.toJson()
         };
@@ -323,10 +318,10 @@ export class SQXClauseOrderBy extends SQXOperatorBase
             const propertyToken = cursor.token(i);
             const dirToken = cursor.token(i+1);
             const field:SQXSortField = {property: SQXPropertyRef.fromToken(propertyToken), direction: dirToken.textValue};
-            if (!propertyToken || propertyToken.operator) {
+            if (!propertyToken || (propertyToken as any).operator) {
                 throw cursor.error(propertyToken, `ORDER BY statement must be followed by a property or field alias reference`);
             }
-            if (!dirToken || dirToken.operator || (dirToken.textValue !== 'ASC' && dirToken.textValue !== 'DESC')) {
+            if (!dirToken || (dirToken as any).operator || (dirToken.textValue !== 'ASC' && dirToken.textValue !== 'DESC')) {
                 throw cursor.error(
                     dirToken,
                     `ORDER BY clause must include a directionality flag that is either 'ASC' or 'DESC'; '${dirToken.textValue}' does not fulfill this requirement.`
@@ -362,7 +357,7 @@ export class SQXClauseOrderBy extends SQXOperatorBase
     }
 
     public getDescendants(): SQXToken[] {
-        return this.sortFields.length > 0 ? this.sortFields.map(sf => sf.property) : new Array<SQXToken>();
+        return this.sortFields.length > 0 ? this.sortFields.map(sf => sf.property) : [];
     }
 }
 
@@ -375,12 +370,12 @@ export class SQXClauseLimit extends SQXOperatorBase
         topClause: true
     };
 
-    public count:SQXScalarValue;
+    public count?:SQXScalarValue;
 
     public fromParser( cursor:SQXParseCursor, tokenIndex:number ) {
         cursor.next();
         let count = cursor.token( tokenIndex + 1 );
-        if ( ! count || count.operator ) {
+        if ( ! count || (count as any).operator ) {
             throw cursor.error( count, `LIMIT clause requires a single numeric argument indicating the number of results to return.` );
         }
         this.count = SQXScalarValue.fromToken( count, cursor.expression, "number" );
@@ -392,10 +387,16 @@ export class SQXClauseLimit extends SQXOperatorBase
     }
 
     public toQueryString():string {
+        if(!this.count){
+            throw new Error("count has not been defined");
+        }
         return `LIMIT ${this.count.toQueryString()}`;
     }
 
     public toJson() {
+        if(!this.count){
+            throw new Error("count has not been defined");
+        }
         return {
             limit: this.count.toJson()
         };
@@ -415,14 +416,14 @@ export class SQXClauseTimeRange extends SQXOperatorBase
         topClause: true
     };
 
-    public end_timestamp?: number = null;
-    public start_timestamp?: number = null;
-    public timespan?: number = null;
+    public end_timestamp?: number|null = null;
+    public start_timestamp?: number|null = null;
+    public timespan?: number|null = null;
 
     constructor() { super(); }
 
-    public toJson():any {
-        let timeRangeClause = {};
+    public toJson() {
+        const timeRangeClause:{end_timestamp?:number;start_timestamp?:number;timespan?:number} = {};
         if (this.end_timestamp) {
             timeRangeClause['end_timestamp'] = this.end_timestamp;
         }
