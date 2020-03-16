@@ -203,7 +203,7 @@ export class SQXSearchQuery
         let operators:SQXOperatorBase[] = [];
         this.traverseDescendants( ( token, depth ) => {
                                     if ( token instanceof SQXOperatorBase ) {
-                                        if ( token.opPropertyRef.textValue === targetProperty.textValue ) {
+                                        if ( token.opPropertyRef && token.opPropertyRef.textValue === targetProperty.textValue ) {
                                             operators.push( token );
                                         }
                                     }

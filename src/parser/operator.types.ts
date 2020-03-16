@@ -139,6 +139,7 @@ export class SQXOperatorNegate extends SQXOperatorBase
 
     public fromJson( raw:any, converter:any ) {
         this.condition = converter( raw );
+        this.condition.parent = this;
     }
 
     public fromParser( cursor:SQXParseCursor, tokenIndex:number ) {
@@ -165,6 +166,10 @@ export class SQXOperatorNegate extends SQXOperatorBase
         return {
             "not": this.condition.toJson()
         };
+    }
+
+    public getDescendants():SQXToken[] {
+        return this.condition ? [ this.condition ] : [];
     }
 }
 
@@ -233,13 +238,20 @@ export class SQXComparatorNotEqual extends SQXOperatorBase
     public property:SQXPropertyRef|SQXOperatorBase;
     public value:SQXScalarValue;
 
-    constructor() {
+    constructor( property?:string|SQXPropertyRef, value?:string|number|boolean|SQXScalarValue) {
         super();
+        if ( property && value ) {
+            this.property = this.opPropertyRef = new SQXPropertyRef( property );
+            this.value = new SQXScalarValue( value );
+            this.opValues = [ this.value ];
+        }
     }
 
     public fromJson( raw:any, converter:any ) {
         this.property = converter( raw[0] );
         this.value = SQXScalarValue.fromJson( raw[1] );
+        this.opPropertyRef = new SQXPropertyRef( this.property.textValue );
+        this.opValues = [ this.value ];
     }
 
     public fromParser( cursor:SQXParseCursor, tokenIndex:number ) {
